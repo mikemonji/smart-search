@@ -26,7 +26,7 @@ This project implements a smart search algorithm using NestJS, TypeORM, PostgreS
 1. Clone the repository:
 
 ```
-git clone <repository-url>
+git clone git@github.com:mikemonji/smart-search.git
 cd smart-search
 ```
 
