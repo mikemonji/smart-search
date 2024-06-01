@@ -43,11 +43,11 @@ yarn install
 - Example of `.env` content:
 
 ```
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=yourusername
-DB_PASSWORD=yourpassword
-DB_NAME=smart_search
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_USERNAME=yourusername
+DATABASE_PASSWORD=yourpassword
+DATABASE_NAME=smart_search
 ```
 
 ### Run database migrations to set up the schema and import initial data:
