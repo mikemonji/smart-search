@@ -6,6 +6,8 @@ import { DishType } from '../dish-types/dish-types.entity';
 import { Diet } from '../diets/diets.entity';
 import { City } from '../cities/cities.entity';
 
+type ObjectType = { id: number; name: string };
+
 @Injectable()
 export class SmartSearchService {
   constructor(
@@ -16,39 +18,82 @@ export class SmartSearchService {
   ) {}
 
   async extractEntities(searchTerm: string) {
-    const results = [];
-    const terms = searchTerm.split(' ');
+    const terms = searchTerm.toLowerCase().split(' ');
 
-    const cities = await this.cityRepo
-      .createQueryBuilder('city')
-      .where('city.name IN (:...terms)', { terms })
-      .getMany();
+    const [cities, brands, dishTypes, diets] = await Promise.all([
+      this.queryEntities(this.cityRepo, terms),
+      this.queryEntities(this.brandRepo, terms),
+      this.queryEntities(this.dishTypeRepo, terms),
+      this.queryEntities(this.dietRepo, terms),
+    ]);
 
-    const brands = await this.brandRepo
-      .createQueryBuilder('brand')
-      .where('brand.name IN (:...terms)', { terms })
-      .getMany();
+    return this.combineArrays(cities, brands, dishTypes, diets);
+  }
 
-    const dishTypes = await this.dishTypeRepo
-      .createQueryBuilder('dishType')
-      .where('dishType.name IN (:...terms)', { terms })
-      .getMany();
-
-    const diets = await this.dietRepo
-      .createQueryBuilder('diet')
-      .where('diet.name IN (:...terms)', { terms })
-      .getMany();
-
-    cities.forEach((city) => {
-      brands.forEach((brand) => {
-        dishTypes.forEach((dishType) => {
-          diets.forEach((diet) => {
-            results.push({ city, brand, dishType, diet });
-          });
-        });
+  private async queryEntities<T>(
+    repo: Repository<T>,
+    terms: string[],
+  ): Promise<ObjectType[]> {
+    const query = repo.createQueryBuilder('entity');
+    terms.forEach((term, index) => {
+      const paramName = `term${index}`;
+      query.orWhere(`LOWER(entity.name) LIKE :${paramName}`, {
+        [paramName]: `%${term}%`,
       });
     });
 
-    return results;
+    const entities = await query.getMany();
+    return entities.map((entity) => ({
+      id: (entity as any).id,
+      name: (entity as any).name,
+    }));
+  }
+
+  private combineArrays(
+    dietArray: ObjectType[],
+    dishTypeArray: ObjectType[],
+    cityArray: ObjectType[],
+    brandArray: ObjectType[],
+  ): {
+    diets?: ObjectType;
+    dishTypes?: ObjectType;
+    citys?: ObjectType;
+    brands?: ObjectType;
+  }[] {
+    const finalArray: {
+      diets?: ObjectType;
+      dishTypes?: ObjectType;
+      citys?: ObjectType;
+      brands?: ObjectType;
+    }[] = [];
+
+    const diets = dietArray.length > 0 ? dietArray : [undefined];
+    const dishTypes = dishTypeArray.length > 0 ? dishTypeArray : [undefined];
+    const citys = cityArray.length > 0 ? cityArray : [undefined];
+    const brands = brandArray.length > 0 ? brandArray : [undefined];
+
+    for (const diet of diets) {
+      for (const dishType of dishTypes) {
+        for (const city of citys) {
+          for (const brand of brands) {
+            const combination: {
+              diets?: ObjectType;
+              dishTypes?: ObjectType;
+              citys?: ObjectType;
+              brands?: ObjectType;
+            } = {};
+
+            if (diet) combination.diets = diet;
+            if (dishType) combination.dishTypes = dishType;
+            if (city) combination.citys = city;
+            if (brand) combination.brands = brand;
+
+            finalArray.push(combination);
+          }
+        }
+      }
+    }
+
+    return finalArray;
   }
 }
