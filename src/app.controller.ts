@@ -1,12 +1,12 @@
-import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Controller, Get, Query } from '@nestjs/common';
+import { SmartSearchService } from './smart-search/smart-search.service';
 
-@Controller()
-export class AppController {
-  constructor(private readonly appService: AppService) {}
+@Controller('smart-search')
+export class SmartSearchController {
+  constructor(private readonly smartSearchService: SmartSearchService) {}
 
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  async search(@Query('term') term: string) {
+    return this.smartSearchService.extractEntities(term);
   }
 }

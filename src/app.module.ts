@@ -2,6 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
+import { CitiesModule } from './cities/cities.module';
+import { BrandsModule } from './brands/brands.module';
+import { DietsModule } from './diets/diets.module';
+import { DishTypesModule } from './dish-types/dish-types.module';
+import { SmartSearchModule } from './smart-search/smart-search.module';
 
 @Module({
   imports: [
@@ -18,6 +23,11 @@ import { join } from 'path';
       entities: [join(__dirname, '**', '*.entity{.ts,.js}')],
       synchronize: true,
     }),
+    CitiesModule,
+    BrandsModule,
+    DietsModule,
+    DishTypesModule,
+    SmartSearchModule,
   ],
 })
 export class AppModule {}
