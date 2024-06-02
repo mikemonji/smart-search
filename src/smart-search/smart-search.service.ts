@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { Brand } from '../brands/brands.entity';
 import { DishType } from '../dish-types/dish-types.entity';
 import { Diet } from '../diets/diets.entity';
 import { City } from '../cities/cities.entity';
+import { sanitizeInput } from 'src/utils/sanitizeInput';
 
-type ObjectType = { id: number; name: string };
+type ObjectType = { id: number; name: string; type: string };
 
 @Injectable()
 export class SmartSearchService {
@@ -15,38 +16,60 @@ export class SmartSearchService {
     @InjectRepository(Brand) private brandRepo: Repository<Brand>,
     @InjectRepository(DishType) private dishTypeRepo: Repository<DishType>,
     @InjectRepository(Diet) private dietRepo: Repository<Diet>,
+    private entityManager: EntityManager,
   ) {}
 
   async extractEntities(searchTerm: string) {
-    const terms = searchTerm.toLowerCase().split(' ');
+    const terms = sanitizeInput(searchTerm).toLowerCase().split(' ');
 
-    const [cities, brands, dishTypes, diets] = await Promise.all([
-      this.queryEntities(this.cityRepo, terms),
-      this.queryEntities(this.brandRepo, terms),
-      this.queryEntities(this.dishTypeRepo, terms),
-      this.queryEntities(this.dietRepo, terms),
-    ]);
+    const entities = await this.queryAllEntities(terms);
 
-    return this.combineArrays(cities, brands, dishTypes, diets);
+    const { cities, brands, dishTypes, diets } =
+      this.separateEntities(entities);
+
+    return this.combineArrays(diets, dishTypes, cities, brands);
   }
 
-  private async queryEntities<T>(
-    repo: Repository<T>,
-    terms: string[],
-  ): Promise<ObjectType[]> {
-    const query = repo.createQueryBuilder('entity');
-    terms.forEach((term, index) => {
-      const paramName = `term${index}`;
-      query.orWhere(`LOWER(entity.name) LIKE :${paramName}`, {
-        [paramName]: `%${term}%`,
-      });
-    });
+  private async queryAllEntities(terms: string[]): Promise<ObjectType[]> {
+    const citiesQuery = this.buildQuery(this.cityRepo, terms, 'city');
+    const brandsQuery = this.buildQuery(this.brandRepo, terms, 'brand');
+    const dishTypesQuery = this.buildQuery(
+      this.dishTypeRepo,
+      terms,
+      'dishType',
+    );
+    const dietsQuery = this.buildQuery(this.dietRepo, terms, 'diet');
 
-    const entities = await query.getMany();
-    return entities.map((entity) => ({
-      id: (entity as any).id,
-      name: (entity as any).name,
+    const finalQuery = `${citiesQuery} UNION ALL ${brandsQuery} UNION ALL ${dishTypesQuery} UNION ALL ${dietsQuery}`;
+    const result = await this.entityManager.query(finalQuery);
+
+    return result.map((entity) => ({
+      id: entity.id,
+      name: entity.name,
+      type: entity.type,
     }));
+  }
+
+  private buildQuery(
+    repo: Repository<any>,
+    terms: string[],
+    type: string,
+  ): string {
+    const tableName = repo.metadata.tableName;
+    const conditions = terms
+      .map((term) => `LOWER("name") LIKE '%${term}%'`)
+      .join(' OR ');
+
+    return `SELECT id, name, '${type}' as type FROM "${tableName}" WHERE ${conditions}`;
+  }
+
+  private separateEntities(entities: ObjectType[]) {
+    const cities = entities.filter((entity) => entity.type === 'city');
+    const brands = entities.filter((entity) => entity.type === 'brand');
+    const dishTypes = entities.filter((entity) => entity.type === 'dishType');
+    const diets = entities.filter((entity) => entity.type === 'diet');
+
+    return { cities, brands, dishTypes, diets };
   }
 
   private combineArrays(
